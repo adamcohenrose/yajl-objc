@@ -95,10 +95,14 @@ typedef NSUInteger YAJLParserStatus;
 	YAJLParserOptions parserOptions_;
 
 	NSError *parserError_;
+
+	CFMutableDictionaryRef keyStringTable_;
+	CFMutableDictionaryRef valueStringTable_;
 }
 
 @property (assign, nonatomic) id <YAJLParserDelegate> delegate;
 @property (readonly, retain, nonatomic) NSError *parserError;
+
 
 /*!
  Create parser with data and options.

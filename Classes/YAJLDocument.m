@@ -47,8 +47,8 @@ NSInteger YAJLDocumentStackCapacity = 20;
 
 - (id)initWithParserOptions:(YAJLParserOptions)parserOptions {
 	if ((self = [super init])) {
-		stack_ = [[NSMutableArray alloc] initWithCapacity:YAJLDocumentStackCapacity];
-		keyStack_ = [[NSMutableArray alloc] initWithCapacity:YAJLDocumentStackCapacity];		
+		stack_ = CFArrayCreateMutable(NULL, 10, &kCFTypeArrayCallBacks);
+		keyStack_ = CFArrayCreateMutable(NULL, 3, &kCFTypeArrayCallBacks);
 		status_ = YAJLParserStatusNone;
 		parser_ = [[YAJLParser alloc] initWithParserOptions:parserOptions];
 		parser_.delegate = self;
@@ -64,8 +64,8 @@ NSInteger YAJLDocumentStackCapacity = 20;
 }
 
 - (void)dealloc {
-	[stack_ release];
-	[keyStack_ release];
+	CFRelease(stack_);
+	CFRelease(keyStack_);
 	parser_.delegate = nil;
 	[parser_ release];	
 	[root_ release];
@@ -83,11 +83,11 @@ NSInteger YAJLDocumentStackCapacity = 20;
 - (void)parser:(YAJLParser *)parser didAdd:(id)value {
 	switch(currentType_) {
 		case YAJLDecoderCurrentTypeArray:
-			[array_ addObject:value];
+			CFArrayAppendValue(array_, value);
 			break;
 		case YAJLDecoderCurrentTypeDict:
 			NSParameterAssert(key_);
-			[dict_ setObject:value forKey:key_];
+			CFDictionarySetValue(dict_, key_, value);
 			[self _popKey];
 			break;
 	}	
@@ -95,63 +95,91 @@ NSInteger YAJLDocumentStackCapacity = 20;
 
 - (void)parser:(YAJLParser *)parser didMapKey:(NSString *)key {
 	key_ = key;
-	[keyStack_ addObject:key_]; // Push
+	CFArrayAppendValue(keyStack_, key); // Push
 }
 
 - (void)_popKey {
 	key_ = nil;
-	[keyStack_ removeLastObject]; // Pop	
-	if ([keyStack_ count] > 0) 
-		key_ = [keyStack_ objectAtIndex:[keyStack_ count]-1];	
+
+	CFIndex count = CFArrayGetCount(keyStack_);
+
+	if (count > 0)
+	{
+		CFArrayRemoveValueAtIndex(keyStack_, count-1);
+
+		if (count > 1)
+		{
+			key_ = (id)CFArrayGetValueAtIndex(keyStack_, count-2);
+		}
+	}
 }
 
 - (void)parserDidStartDictionary:(YAJLParser *)parser {
-	NSMutableDictionary *dict = [[NSMutableDictionary alloc] initWithCapacity:YAJLDocumentStackCapacity];
-	if (!root_) root_ = [dict retain];
-	[stack_ addObject:dict]; // Push
-	[dict release];
+	CFMutableDictionaryRef dict = CFDictionaryCreateMutable(NULL, 0, &kCFCopyStringDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	if (!root_) root_ = [(id)dict retain];
+	CFArrayAppendValue(stack_, dict); // Push
 	dict_ = dict;
 	currentType_ = YAJLDecoderCurrentTypeDict;	
 }
 
 - (void)parserDidEndDictionary:(YAJLParser *)parser {
-	id value = [[stack_ objectAtIndex:[stack_ count]-1] retain];
+	CFIndex count = CFArrayGetCount(stack_);
+	CFTypeRef value = CFArrayGetValueAtIndex(stack_, count-1);
+	CFRetain(value);
 	[self _pop];
-	[self parser:parser didAdd:value];
-	[value release];
+	[self parser:parser didAdd:(id)value];
+	CFRelease(value);
 }
 
 - (void)parserDidStartArray:(YAJLParser *)parser {
-	NSMutableArray *array = [[NSMutableArray alloc] initWithCapacity:YAJLDocumentStackCapacity];
-	if (!root_) root_ = [array retain];
-	[stack_ addObject:array]; // Push
-	[array release];
+	CFMutableArrayRef array = CFArrayCreateMutable(NULL, 10, &kCFTypeArrayCallBacks);
+
+	if (!root_) root_ = [(id)array retain];
+	// Push
+	CFArrayAppendValue(stack_, array);
 	array_ = array;
+	CFRelease(array);
 	currentType_ = YAJLDecoderCurrentTypeArray;
 }
 
 - (void)parserDidEndArray:(YAJLParser *)parser {
-	id value = [[stack_ objectAtIndex:[stack_ count]-1] retain];
+	CFIndex count = CFArrayGetCount(stack_);
+	CFTypeRef value = CFArrayGetValueAtIndex(stack_, count-1);
+	CFRetain(value);
 	[self _pop];	
-	[self parser:parser didAdd:value];
-	[value release];
+	[self parser:parser didAdd:(id)value];
+	CFRelease(value);
 }
 
 - (void)_pop {
-	[stack_ removeLastObject];
-	array_ = nil;
-	dict_ = nil;
+
+	CFIndex count = CFArrayGetCount(stack_);
+	if (count > 0)
+	{
+		CFArrayRemoveValueAtIndex(stack_, count-1);
+		count--;
+	}
+
+	array_ = NULL;
+	dict_ = NULL;
+
 	currentType_ = YAJLDecoderCurrentTypeNone;
 
-	id value = nil;
-	if ([stack_ count] > 0) value = [stack_ objectAtIndex:[stack_ count]-1];
-	if ([value isKindOfClass:[NSArray class]]) {		
-		array_ = (NSMutableArray *)value;
+	CFTypeRef value = NULL;
+
+	if (count > 0) value = CFArrayGetValueAtIndex(stack_, count-1);
+
+	if (value)
+	{
+		CFTypeID type = CFGetTypeID(value);
+		if (type == CFArrayGetTypeID()) {
+			array_ = (CFMutableArrayRef)value;
 		currentType_ = YAJLDecoderCurrentTypeArray;
-	} else if ([value isKindOfClass:[NSDictionary class]]) {		
-		dict_ = (NSMutableDictionary *)value;
+		} else if (type == CFDictionaryGetTypeID()) {
+			dict_ = (CFMutableDictionaryRef)value;
 		currentType_ = YAJLDecoderCurrentTypeDict;
 	}
+}
 }
 
 @end

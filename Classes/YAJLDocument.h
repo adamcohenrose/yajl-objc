@@ -43,13 +43,12 @@ extern NSInteger YAJLDocumentStackCapacity;
 	id root_; // NSArray or NSDictionary
 	YAJLParser *parser_;
 	
-	
-	__weak NSMutableDictionary *dict_; // weak; if map in progress, points to the current map	
-	__weak NSMutableArray *array_; // weak; If array in progress, points the current array
+	__weak CFMutableDictionaryRef dict_;
+	__weak CFMutableArrayRef array_;
 	__weak NSString *key_; // weak; If map in progress, points to current key
 	
-	NSMutableArray *stack_;
-	NSMutableArray *keyStack_;
+	CFMutableArrayRef stack_;
+	CFMutableArrayRef keyStack_;
 	
 	YAJLDecoderCurrentType currentType_;
 	

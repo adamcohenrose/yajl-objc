@@ -34,6 +34,10 @@ NSString *const YAJLErrorDomain = @"YAJLErrorDomain";
 NSString *const YAJLParserException = @"YAJLParserException";
 NSString *const YAJLParsingUnsupportedException = @"YAJLParsingUnsupportedException";
 
+#define USE_STRING_TABLE   // Keep all the keys & value found in a JSON document for reuse, 
+                           // so we don't have to have copies in memory
+
+
 @interface YAJLParser ()
 @property (retain, nonatomic) NSError *parserError;
 @end
@@ -41,8 +45,11 @@ NSString *const YAJLParsingUnsupportedException = @"YAJLParsingUnsupportedExcept
 
 @interface YAJLParser (Private)
 - (void)_add:(id)value;
+#ifdef USE_STRING_TABLE
+- (void)_mapKey:(const unsigned char *)stringVal length:(unsigned int)stringLen;
+#else
 - (void)_mapKey:(NSString *)key;
-
+#endif
 - (void)_startDictionary;
 - (void)_endDictionary;
 
@@ -52,6 +59,96 @@ NSString *const YAJLParsingUnsupportedException = @"YAJLParsingUnsupportedExcept
 - (NSError *)_errorForStatus:(NSInteger)code message:(NSString *)message;
 - (void)_cancelWithErrorForStatus:(NSInteger)code message:(NSString *)message;
 @end
+
+
+
+// Definitions and callbacks for the custom struct type, to be used as keys
+typedef struct {
+	NSInteger  referenceCount;
+	NSUInteger length;
+	CFHashCode hash;
+	char *characters;   // for lengthEncodedStrings allocated in lengthEncodedStringRetain - the characters pointer points to the buffer immediately following the struct
+} LengthEncodedString;
+
+static const void *lengthEncodedStringRetain(CFAllocatorRef allocator, const void *ptr) {
+	LengthEncodedString* originalPtr = (LengthEncodedString*)ptr;
+	if (originalPtr->referenceCount)
+	{
+		originalPtr->referenceCount++;
+		return originalPtr;
+	}
+	else 
+	{
+		LengthEncodedString *newPtr = (LengthEncodedString *)CFAllocatorAllocate(allocator, sizeof(LengthEncodedString)+originalPtr->length, 0);
+		newPtr->length = originalPtr->length;
+		// point char buffer to just after the struct
+		newPtr->characters = ((char*)newPtr) + sizeof(LengthEncodedString);
+		newPtr->hash = originalPtr->hash;
+		memcpy(newPtr->characters, originalPtr->characters, originalPtr->length);
+		newPtr->referenceCount = 1;
+		return newPtr;
+	}
+}
+
+static void lengthEncodedStringRelease(CFAllocatorRef allocator, const void *ptr) {
+	LengthEncodedString* originalPtr = (LengthEncodedString*)ptr;
+	originalPtr->referenceCount--;
+	if (originalPtr->referenceCount==0)
+	{
+		CFAllocatorDeallocate(allocator, (LengthEncodedString *)ptr);
+	}
+}
+
+static Boolean lengthEncodedStringEqual(const void *ptr1, const void *ptr2) {
+	LengthEncodedString* p1 = (LengthEncodedString*)ptr1;
+	LengthEncodedString* p2 = (LengthEncodedString*)ptr2;
+	return  (p1->hash == p2->hash) && (p1->length == p2->length) && (memcmp(p1->characters, p2->characters, p1->length)==0);
+}
+
+static CFHashCode lengthEncodedStringHash(const void *ptr) {
+	LengthEncodedString* p1 = (LengthEncodedString*)ptr;
+	return p1->hash;
+}
+
+// This callback is optional; it's used if you want to print dictionaries out when debugging
+
+static CFStringRef lengthEncodedStringCopyDescription(const void *ptr) {
+	LengthEncodedString* p = (LengthEncodedString*)ptr;
+	char* str = p->characters;
+	return CFStringCreateWithFormat(NULL, NULL, CFSTR("[%.*s]"), p->length, str);
+}
+
+
+
+#define MULLE_ELF_STEP( B) 	\
+do			 	\
+{			 	\
+H  = (H << 4) + B;		\
+H ^= (H >> 24) & 0xF0;	\
+}				\
+while( 0)
+
+
+CFHashCode computeHash(const unsigned char* bytes, unsigned int length)
+{
+	unsigned int H = 0;
+	int rem = length;
+	while (3 < rem) {
+		MULLE_ELF_STEP(bytes[length - rem]);
+		MULLE_ELF_STEP(bytes[length - rem + 1]);
+		MULLE_ELF_STEP(bytes[length - rem + 2]);
+		MULLE_ELF_STEP(bytes[length - rem + 3]);
+		rem -= 4;
+	}
+	switch (rem) {
+		case 3:  MULLE_ELF_STEP(bytes[length - 3]);
+		case 2:  MULLE_ELF_STEP(bytes[length - 2]);
+		case 1:  MULLE_ELF_STEP(bytes[length - 1]);
+		case 0:  ;
+	}
+	return H;
+}
+#undef MULLE_ELF_STEP
 
 
 @implementation YAJLParser
@@ -65,6 +162,16 @@ NSString *const YAJLParsingUnsupportedException = @"YAJLParsingUnsupportedExcept
 - (id)initWithParserOptions:(YAJLParserOptions)parserOptions {
 	if ((self = [super init])) {
 		parserOptions_ = parserOptions;		
+
+		CFDictionaryKeyCallBacks lengthEncodedStringKeyCallBacks = {0, lengthEncodedStringRetain, lengthEncodedStringRelease, lengthEncodedStringCopyDescription, lengthEncodedStringEqual, lengthEncodedStringHash};
+
+		keyStringTable_ = CFDictionaryCreateMutable(NULL, 20,
+																								&lengthEncodedStringKeyCallBacks,
+																								&kCFTypeDictionaryValueCallBacks);
+
+		valueStringTable_ = CFDictionaryCreateMutable(NULL, 50,
+																									&lengthEncodedStringKeyCallBacks,
+																								&kCFTypeDictionaryValueCallBacks);
 	}
 	return self;
 }
@@ -76,7 +183,23 @@ NSString *const YAJLParsingUnsupportedException = @"YAJLParsingUnsupportedExcept
 	}	
 	
 	[parserError_ release];
+
+	//CFStringRef copyDescription = CFCopyDescription(keyStringTable_);
+	//NSLog(@"Keys %@", copyDescription);
+	//CFRelease(copyDescription);
+
+	//copyDescription = CFCopyDescription(valueStringTable_);
+	//NSLog(@"Values %@", copyDescription);
+	//CFRelease(copyDescription);
+
+	CFRelease(keyStringTable_);
+	CFRelease(valueStringTable_);
 	[super dealloc];
+}
+
+- (id) keyStringTable
+{
+  return (id)keyStringTable_;
 }
 
 #pragma mark Error Helpers
@@ -98,9 +221,18 @@ int yajl_null(void *ctx) {
 }
 
 int yajl_boolean(void *ctx, int boolVal) {
-	NSNumber *number = [[NSNumber alloc] initWithBool:(BOOL)boolVal];
-	[(id)ctx _add:number];
-	[number release];
+
+	static NSNumber *yesNumber = nil;
+	static NSNumber *noNumber = nil;
+
+	if (yesNumber == nil)
+	{
+		yesNumber = [[NSNumber numberWithBool:YES] retain];
+		noNumber = [[NSNumber numberWithBool:NO] retain];
+	}
+
+	[(id)ctx _add: boolVal ? yesNumber : noNumber];
+
 	return 1;
 }
 
@@ -133,16 +265,42 @@ int yajl_number(void *ctx, const char *numberVal, unsigned int numberLen) {
 }
 
 int yajl_string(void *ctx, const unsigned char *stringVal, unsigned int stringLen) {
+#ifdef USE_STRING_TABLE
+	LengthEncodedString p;
+	p.referenceCount = 0;
+	p.length = stringLen;
+	p.characters = (char*)stringVal;
+	p.hash = computeHash(stringVal, stringLen);
+	
+	YAJLParser* parser = (YAJLParser *)ctx;
+	CFTypeRef value = CFDictionaryGetValue(parser->valueStringTable_, &p);
+	if (value)
+	{
+		[(id)ctx _add:(NSString *)value];
+	}
+	else
+	{
+	NSString *s = [[NSString alloc] initWithBytes:stringVal length:stringLen encoding:NSUTF8StringEncoding];
+		CFDictionarySetValue(parser->valueStringTable_, &p, s);
+	[(id)ctx _add:s];
+	[s release];
+	}
+#else // USE_STRING_TABLE
 	NSString *s = [[NSString alloc] initWithBytes:stringVal length:stringLen encoding:NSUTF8StringEncoding];
 	[(id)ctx _add:s];
 	[s release];
+#endif // USE_STRING_TABLE
 	return 1;
 }
 
 int yajl_map_key(void *ctx, const unsigned char *stringVal, unsigned int stringLen) {
+#ifdef USE_STRING_TABLE 
+	[(id)ctx _mapKey:stringVal length:stringLen];
+#else // USE_STRING_TABLE
 	NSString *s = [[NSString alloc] initWithBytes:stringVal length:stringLen encoding:NSUTF8StringEncoding];
 	[(id)ctx _mapKey:s];
 	[s release];
+#endif //USE_STRING_TABLE
 	return 1;
 }
 
@@ -186,9 +344,33 @@ yajl_end_array
 	[delegate_ parser:self didAdd:value];
 }
 
+#ifdef USE_STRING_TABLE
+- (void)_mapKey:(const unsigned char *)stringVal length:(unsigned int)stringLen {
+
+	LengthEncodedString p;
+	p.referenceCount = 0;
+	p.length = stringLen;
+	p.characters = (char*)stringVal;
+	p.hash = computeHash(stringVal, stringLen);
+
+	CFTypeRef value = CFDictionaryGetValue(keyStringTable_, &p);
+	if (value)
+	{
+		[delegate_ parser:self didMapKey:(NSString*)value];
+	}
+	else
+	{
+		NSString *s = [[NSString alloc] initWithBytes:stringVal length:stringLen encoding:NSUTF8StringEncoding];
+		CFDictionarySetValue(keyStringTable_, &p, s);
+		[delegate_ parser:self didMapKey:s];
+		[s release];
+	}
+}
+#else
 - (void)_mapKey:(NSString *)key {
 	[delegate_ parser:self didMapKey:key];
 }
+#endif
 
 - (void)_startDictionary {
 	[delegate_ parserDidStartDictionary:self];

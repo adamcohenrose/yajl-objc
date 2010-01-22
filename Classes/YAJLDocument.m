@@ -119,6 +119,7 @@ NSInteger YAJLDocumentStackCapacity = 20;
 	if (!root_) root_ = [(id)dict retain];
 	CFArrayAppendValue(stack_, dict); // Push
 	dict_ = dict;
+  CFRelease(dict);
 	currentType_ = YAJLDecoderCurrentTypeDict;	
 }
 

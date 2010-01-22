@@ -33,10 +33,10 @@
 NSString *const YAJLErrorDomain = @"YAJLErrorDomain";
 NSString *const YAJLParserException = @"YAJLParserException";
 NSString *const YAJLParsingUnsupportedException = @"YAJLParsingUnsupportedException";
+NSString *const YAJLParserValueKey = @"YAJLParserValueKey";
 
 #define USE_STRING_TABLE   // Keep all the keys & value found in a JSON document for reuse, 
                            // so we don't have to have copies in memory
-
 
 @interface YAJLParser ()
 @property (retain, nonatomic) NSError *parserError;
@@ -56,8 +56,8 @@ NSString *const YAJLParsingUnsupportedException = @"YAJLParsingUnsupportedExcept
 - (void)_startArray;
 - (void)_endArray;
 
-- (NSError *)_errorForStatus:(NSInteger)code message:(NSString *)message;
-- (void)_cancelWithErrorForStatus:(NSInteger)code message:(NSString *)message;
+- (NSError *)_errorForStatus:(NSInteger)code message:(NSString *)message value:(NSString *)value;
+- (void)_cancelWithErrorForStatus:(NSInteger)code message:(NSString *)message value:(NSString *)value;
 @end
 
 
@@ -204,13 +204,14 @@ CFHashCode computeHash(const unsigned char* bytes, unsigned int length)
 
 #pragma mark Error Helpers
 
-- (NSError *)_errorForStatus:(NSInteger)code message:(NSString *)message {
-	NSDictionary *userInfo = [NSDictionary dictionaryWithObject:message forKey:NSLocalizedDescriptionKey];
+- (NSError *)_errorForStatus:(NSInteger)code message:(NSString *)message value:(NSString *)value {
+	NSMutableDictionary *userInfo = [NSMutableDictionary dictionaryWithObject:message forKey:NSLocalizedDescriptionKey];
+  if (value) [userInfo setObject:value forKey:YAJLParserValueKey];
 	return [NSError errorWithDomain:YAJLErrorDomain code:code userInfo:userInfo];
 }
 
-- (void)_cancelWithErrorForStatus:(NSInteger)code message:(NSString *)message {
-	self.parserError = [self _errorForStatus:code message:message];
+- (void)_cancelWithErrorForStatus:(NSInteger)code message:(NSString *)message value:(NSString *)value {
+	self.parserError = [self _errorForStatus:code message:message value:value];
 }
 
 #pragma mark YAJL Callbacks
@@ -237,8 +238,9 @@ int yajl_boolean(void *ctx, int boolVal) {
 }
 
 // Instead of using yajl_integer, and yajl_double we use yajl_number and parse
-// as double; This is to be more compliant since javascript numbers are represented
-// as double precision floating point
+// as double (or long long); This is to be more compliant since Javascript numbers are represented
+// as double precision floating point, though JSON spec doesn't define a max value 
+// and is up to the parser?
 
 //int yajl_integer(void *ctx, long integerVal) {
 //	[(id)ctx _add:[NSNumber numberWithLong:integerVal]];
@@ -251,16 +253,35 @@ int yajl_boolean(void *ctx, int boolVal) {
 //}
 
 int yajl_number(void *ctx, const char *numberVal, unsigned int numberLen) {
-	double d = strtod(numberVal, NULL);
-	if ((d == HUGE_VAL || d == -HUGE_VAL) && errno == ERANGE) {
-		NSString *s = [[NSString alloc] initWithBytes:numberVal length:numberLen encoding:NSUTF8StringEncoding];
-		[(id)ctx _cancelWithErrorForStatus:-2 message:[NSString stringWithFormat:@"double overflow on '%@'", s]];
-		[s release];
-		return 0;
+	char buf[numberLen+1];
+	memcpy(buf, numberVal, numberLen);
+	buf[numberLen] = 0;
+	
+	if (memchr(numberVal, '.', numberLen) || memchr(numberVal, 'e', numberLen) || memchr(numberVal, 'E', numberLen)) {
+		double d = strtod((char *)buf, NULL);
+		if ((d == HUGE_VAL || d == -HUGE_VAL) && errno == ERANGE) {
+			NSString *s = [[NSString alloc] initWithBytes:numberVal length:numberLen encoding:NSUTF8StringEncoding];
+			[(id)ctx _cancelWithErrorForStatus:YAJLParserErrorCodeDoubleOverflow message:[NSString stringWithFormat:@"double overflow on '%@'", s] value:s];
+			[s release];
+			return 0;
+		}
+		NSNumber *number = [[NSNumber alloc] initWithDouble:d];
+		[(id)ctx _add:number];
+		[number release];
 	}
-	NSNumber *number = [[NSNumber alloc] initWithDouble:d];
-	[(id)ctx _add:number];
-	[number release];
+	else {
+		long long i = strtoll((const char *) buf, NULL, 10);
+		if ((i == LLONG_MIN || i == LLONG_MAX) && errno == ERANGE) {
+			NSString *s = [[NSString alloc] initWithBytes:numberVal length:numberLen encoding:NSUTF8StringEncoding];
+			[(id)ctx _cancelWithErrorForStatus:YAJLParserErrorCodeIntegerOverflow message:[NSString stringWithFormat:@"integer overflow on '%@'", s] value:s];
+			[s release];
+			return 0;
+		}
+		NSNumber *number = [[NSNumber alloc] initWithLongLong:i];
+		[(id)ctx _add:number];
+		[number release];
+	}
+	
 	return 1;
 }
 
@@ -397,7 +418,7 @@ yajl_end_array
 		
 		handle_ = yajl_alloc(&callbacks, &cfg, NULL, self);
 		if (!handle_) {	
-			self.parserError = [self _errorForStatus:-1 message:@"Unable to allocate YAJL handle"];
+			self.parserError = [self _errorForStatus:YAJLParserErrorCodeAllocError message:@"Unable to allocate YAJL handle" value:nil];
 			return YAJLParserStatusError;
 		}	
 	}
@@ -411,7 +432,7 @@ yajl_end_array
 	} else if (status == yajl_status_error) {
 		unsigned char *errorMessage = yajl_get_error(handle_, 1, [data bytes], [data length]);
 		NSString *errorString = [NSString stringWithUTF8String:(char *)errorMessage];
-		self.parserError = [self _errorForStatus:status message:errorString];
+		self.parserError = [self _errorForStatus:status message:errorString value:nil];
 		yajl_free_error(handle_, errorMessage);
 		return YAJLParserStatusError;
 	} else if (status == yajl_status_insufficient_data) {
@@ -419,7 +440,7 @@ yajl_end_array
 	} else if (status == yajl_status_ok) {
 		return YAJLParserStatusOK;
 	} else {
-		self.parserError = [self _errorForStatus:status message:[NSString stringWithFormat:@"Unexpected status %d", status]];
+		self.parserError = [self _errorForStatus:status message:[NSString stringWithFormat:@"Unexpected status %d", status] value:nil];
 		return YAJLParserStatusError;
 	}
 }

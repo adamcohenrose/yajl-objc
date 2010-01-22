@@ -1,3 +1,16 @@
+== 0.2.14
+
+- Fixing build problem
+
+== 0.2.13
+
+- Using long long for non-decimal types (instead of always double).
+
+== 0.2.12
+
+- Fixing MacOSX build/install to use @rpath correctly
+- Defined error codes, and error userInfo key for value we errored on
+
 == 0.2.11
 
 - Fixed bug where yajl_JSONWithOptions:error: would ignore options.

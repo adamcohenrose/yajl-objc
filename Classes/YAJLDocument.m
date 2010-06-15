@@ -52,6 +52,10 @@ NSInteger YAJLDocumentStackCapacity = 20;
     parserStatus_ = YAJLParserStatusNone;
     parser_ = [[YAJLParser alloc] initWithParserOptions:parserOptions];
     parser_.delegate = self;
+    
+    if (parserOptions & YAJLParserOptionsPreserveKeys == YAJLParserOptionsPreserveKeys) {
+      keyStore_ = [[NSMutableDictionary alloc] initWithCapacity:16];
+    }
   }
   return self;
 }
@@ -66,6 +70,7 @@ NSInteger YAJLDocumentStackCapacity = 20;
 - (void)dealloc {
   [stack_ release];
   [keyStack_ release];
+  [keyStore_ release];
   parser_.delegate = nil;
   [parser_ release];  
   [root_ release];
@@ -98,7 +103,15 @@ NSInteger YAJLDocumentStackCapacity = 20;
 }
 
 - (void)parser:(YAJLParser *)parser didMapKey:(NSString *)key {
-  key_ = key;
+  if (keyStore_ != nil) {
+    key_ = [keyStore_ objectForKey:key];
+    if (!key_) {
+      [keyStore_ setObject:key forKey:key];
+      key_ = key;
+    }
+  } else {
+    key_ = key;
+  }
   [keyStack_ addObject:key_]; // Push
 }
 

@@ -59,6 +59,7 @@ enum {
   YAJLParserOptionsAllowComments = 1 << 0, // Allows comments in JSON
   YAJLParserOptionsCheckUTF8 = 1 << 1, // If YES will verify UTF-8
   YAJLParserOptionsStrictPrecision = 1 << 2, // If YES will force strict precision and return integer overflow error
+  YAJLParserOptionsPreserveKeys = 1 << 3, // If YES will share key objects -- useful for large arrays of similar dictionaries
 };
 typedef NSUInteger YAJLParserOptions;
 

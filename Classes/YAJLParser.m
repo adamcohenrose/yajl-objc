@@ -275,6 +275,7 @@ int yajl_number(void *ctx, const char *numberVal, unsigned int numberLen) {
   if (memchr(numberVal, '.', numberLen) || memchr(numberVal, 'e', numberLen) || memchr(numberVal, 'E', numberLen)) {
     return ParseDouble(ctx, buf, numberVal, numberLen);
   } else {
+		errno = 0;
 		long long i = strtoll((const char *) buf, NULL, 10);
 		if ((i == LLONG_MIN || i == LLONG_MAX) && errno == ERANGE) {
       if (([(id)ctx parserOptions] & YAJLParserOptionsStrictPrecision) == YAJLParserOptionsStrictPrecision) {

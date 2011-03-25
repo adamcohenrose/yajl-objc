@@ -31,7 +31,7 @@
 #import "YAJLGen.h"
 #import "YAJLDocument.h"
 
-@implementation NSObject (YAJL)
+@implementation NSObject(YAJL)
 
 #pragma mark Gen
 
@@ -75,6 +75,5 @@
   [document release];
   return [root autorelease];
 }
-
 
 @end

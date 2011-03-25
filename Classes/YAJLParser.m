@@ -43,8 +43,9 @@ NSString *const YAJLParserValueKey = @"YAJLParserValueKey";
 @property (retain, nonatomic) NSError *parserError;
 @end
 
+//! @internal
 
-@interface YAJLParser (Private)
+@interface YAJLParser ()
 - (void)_add:(id)value;
 #ifdef USE_STRING_TABLE
 - (void)_mapKey:(const unsigned char *)stringVal length:(unsigned int)stringLen;
@@ -60,6 +61,8 @@ NSString *const YAJLParserValueKey = @"YAJLParserValueKey";
 - (NSError *)_errorForStatus:(NSInteger)code message:(NSString *)message value:(NSString *)value;
 - (void)_cancelWithErrorForStatus:(NSInteger)code message:(NSString *)message value:(NSString *)value;
 @end
+
+//! @endinternal
 
 
 
@@ -372,6 +375,8 @@ yajl_end_array
 
 #pragma mark -
 
+//! @internal
+
 - (void)_add:(id)value {
 	[delegate_ parser:self didAdd:value];
 }
@@ -419,6 +424,8 @@ yajl_end_array
 - (void)_endArray {
 	[delegate_ parserDidEndArray:self];
 }
+
+//! @endinternal
 
 - (YAJLParserStatus)parse:(NSData *)data {
 	if (!handle_) {

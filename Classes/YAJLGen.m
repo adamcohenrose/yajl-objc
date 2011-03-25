@@ -28,7 +28,7 @@
 //
 
 #import "YAJLGen.h"
-#import "YAJL_GTMBase64.h"
+#import "GTMBase64.h"
 
 NSString *const YAJLGenInvalidObjectException = @"YAJLGenInvalidObjectException";
 

@@ -1,4 +1,21 @@
+== 0.2.25
+
+- Fixing YAJL (iOS) build.
+
+== 0.2.22
+
+- Fixing YAJL (Mac OSX) build.
+
+== 0.2.21
+
+- Renaming categories to namespace them in case they are used externally.
+
+== 0.2.20
+
+- Added framework build for iPhone
+
 == 0.2.17
+
 - Updated to use yalj 1.0.9 (iPhone)
 
 == 0.2.16

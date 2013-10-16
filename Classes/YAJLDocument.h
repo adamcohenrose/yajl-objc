@@ -124,6 +124,7 @@ extern NSInteger YAJLDocumentStackCapacity;
   
   NSMutableArray *stack_;
   NSMutableArray *keyStack_;
+  NSMutableDictionary *keyStore_;
   
   YAJLDecoderCurrentType currentType_;
   

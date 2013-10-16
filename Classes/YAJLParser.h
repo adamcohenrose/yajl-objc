@@ -51,6 +51,7 @@ enum YAJLParserOptions {
   YAJLParserOptionsAllowComments = 1 << 0, //!< Javascript style comments will be allowed in the input (both /&asterisk; &asterisk;/ and //)
   YAJLParserOptionsCheckUTF8 = 1 << 1, //!< Invalid UTF8 strings will cause a parse error
   YAJLParserOptionsStrictPrecision = 1 << 2, //!< If YES will force strict precision and return integer overflow error
+  YAJLParserOptionsPreserveKeys = 1 << 3, //!< If YES will share key objects -- useful for large arrays of similar dictionaries
 };
 typedef NSUInteger YAJLParserOptions; //! Parser options
 
@@ -147,6 +148,9 @@ typedef NSUInteger YAJLParserStatus; //!< Status of the last parse event
   YAJLParserOptions parserOptions_;
 
   NSError *parserError_;
+
+  CFMutableDictionaryRef keyStringTable_;
+  CFMutableDictionaryRef valueStringTable_;
 }
 
 @property (assign, nonatomic) id <YAJLParserDelegate> delegate;
@@ -161,6 +165,7 @@ typedef NSUInteger YAJLParserStatus; //!< Status of the last parse event
   - YAJLParserOptionsAllowComments: Javascript style comments will be allowed in the input (both /&asterisk; &asterisk;/ and //)
   - YAJLParserOptionsCheckUTF8: Invalid UTF8 strings will cause a parse error
   - YAJLParserOptionsStrictPrecision: If YES will force strict precision and return integer overflow error
+  - YAJLParserOptionsPreserveKeys: If YES will share key objects -- useful for large arrays of similar dictionaries
  */
 - (id)initWithParserOptions:(YAJLParserOptions)parserOptions;
 

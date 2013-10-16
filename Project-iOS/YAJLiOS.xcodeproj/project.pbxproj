@@ -259,7 +259,7 @@
 		00C405850FE7780E003CE908 /* Tests_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Tests_Prefix.pch; sourceTree = "<group>"; };
 		00C406000FE77A81003CE908 /* CombineLibs.sh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; path = CombineLibs.sh; sourceTree = "<group>"; };
 		00C406470FE77C51003CE908 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = README.md; path = ../README.md; sourceTree = SOURCE_ROOT; };
-		640A0C6D180EBC4100728050 /* yajl-objc.podspec */ = {isa = PBXFileReference; lastKnownFileType = text; name = "yajl-objc.podspec"; path = "../yajl-objc.podspec"; sourceTree = "<group>"; };
+		640A0C6D180EBC4100728050 /* yajl-objc-lowmem.podspec */ = {isa = PBXFileReference; lastKnownFileType = text; name = "yajl-objc-lowmem.podspec"; path = "../yajl-objc-lowmem.podspec"; sourceTree = "<group>"; };
 		AA747D9E0F9514B9006C5449 /* YAJLiOS_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = YAJLiOS_Prefix.pch; sourceTree = SOURCE_ROOT; };
 		AACBBE490F95108600F1A2B1 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -486,7 +486,7 @@
 			isa = PBXGroup;
 			children = (
 				0046C19011779AB80092DA2A /* Makefile */,
-				640A0C6D180EBC4100728050 /* yajl-objc.podspec */,
+				640A0C6D180EBC4100728050 /* yajl-objc-lowmem.podspec */,
 				00200243107D4033009ED6DF /* CHANGELOG.md */,
 				00C406470FE77C51003CE908 /* README.md */,
 				0052CD4F126EABC10049CF17 /* yajl-1.0.11 */,

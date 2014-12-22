@@ -6,7 +6,6 @@ Pod::Spec.new do |s|
   s.license      = 'MIT'
   s.author       = { "Gabriel Handford" => "gabrielh@gmail.com" }
   s.source       = { :git => "https://github.com/adamcohenrose/yajl-objc.git", :branch => "master" }
-  s.source_files = 'Classes/*.{h,m}', 'Libraries/{GHKit,GTM}/*.{h,m}'
-  s.dependency     'yajl', '1.0.11'
+  s.source_files = 'Classes/*.{h,m}', 'Libraries/{GHKit,GTM}/*.{h,m}', 'yajl-1.0.11/*.{h,c}', 'yajl-1.0.11/api/*.h'
   s.requires_arc = false
 end
